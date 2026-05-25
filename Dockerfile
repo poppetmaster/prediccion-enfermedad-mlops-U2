@@ -9,7 +9,7 @@ FROM python:3.12-slim
 # 2. Metadatos
 LABEL maintainer="MLOps"
 LABEL description="Servicio de predicción de enfermedad — Pipeline de MLOps"
-LABEL version="1.0.0"
+LABEL version="2.0.0"
 
 # 3. Directorio de trabajo dentro del contenedor
 WORKDIR /app
@@ -22,8 +22,9 @@ RUN pip install --no-cache-dir \
     --trusted-host files.pythonhosted.org \
     -r requirements.txt
 
-# 5. Copiar código fuente de la aplicación
+# 5. Copiar código fuente de la aplicación y tests
 COPY main.py .
+COPY tests/ tests/
 
 # 6. Exponer el puerto del servicio
 EXPOSE 8000
