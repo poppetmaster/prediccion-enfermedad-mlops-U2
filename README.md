@@ -222,7 +222,7 @@ docker rmi modelo-prediccion
 | Nueva categoría               | ENFERMEDAD TERMINAL (puntaje ≥ 85)                         |
 | Registro de predicciones      | Cada predicción se guarda en `predicciones.json`           |
 | Endpoint `/stats`             | Estadísticas: totales, conteo por estado, últimas 5        |
-| Pruebas unitarias             | `tests/test_modelo.py` con pytest (14 tests)               |
+| Pruebas unitarias             | `tests/test_modelo.py` con pytest (15 tests)               |
 | Dependencias nuevas           | `pytest` y `httpx` agregados a requirements.txt            |
 | Ajuste de umbrales            | AGUDA: 45-64, CRÓNICA: 65-84, TERMINAL: 85-100            |
 
