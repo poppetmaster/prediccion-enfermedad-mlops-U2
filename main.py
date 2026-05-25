@@ -10,6 +10,7 @@ Estados posibles:
     ● ENFERMEDAD LEVE
     ● ENFERMEDAD AGUDA
     ● ENFERMEDAD CRÓNICA
+    ● ENFERMEDAD TERMINAL
 
 Autores :   Cristian Camilo Quebrada
             Ruben Dario Sabogal
@@ -18,6 +19,9 @@ Autores :   Cristian Camilo Quebrada
 Fecha : 13 de mayo de 2026
 """
 
+import json
+import os
+from datetime import datetime, timezone
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -63,6 +67,13 @@ class DatosPaciente(BaseModel):
 # 2.  FUNCIÓN DE PREDICCIÓN (modelo simulado)
 # ─────────────────────────────────────────────
 
+ESTADOS = [
+    "NO ENFERMO",
+    "ENFERMEDAD LEVE",
+    "ENFERMEDAD AGUDA",
+    "ENFERMEDAD CRÓNICA",
+    "ENFERMEDAD TERMINAL",
+]
 def predecir_estado(datos: DatosPaciente) -> dict:
     """
     Simula la predicción del estado de enfermedad del paciente.
@@ -70,7 +81,14 @@ def predecir_estado(datos: DatosPaciente) -> dict:
     Aplica un sistema de puntaje basado en reglas clínicas sobre los
     parámetros recibidos (mínimo 3 obligatorios: num_sintomas,
     dias_sintomas y nivel_dolor) y clasifica al paciente en uno de
-    los cuatro estados definidos.
+    los cinco estados definidos.
+    
+    Umbrales de clasificación:
+        0  – 19  →  NO ENFERMO
+        20 – 44  →  ENFERMEDAD LEVE
+        45 – 64  →  ENFERMEDAD AGUDA
+        65 – 84  →  ENFERMEDAD CRÓNICA
+        85 – 100 →  ENFERMEDAD TERMINAL
 
     Retorna
     -------
@@ -126,19 +144,27 @@ def predecir_estado(datos: DatosPaciente) -> dict:
             "Se recomienda monitoreo ambulatorio y tratamiento según "
             "criterio del médico tratante."
         )
-    elif puntaje < 70:
+    elif puntaje < 65:
         estado = "ENFERMEDAD AGUDA"
         descripcion = (
             "Los parámetros clínicos indican una condición aguda que "
             "requiere atención médica prioritaria. Se recomienda "
             "evaluación clínica completa."
         )
-    else:
+    elif puntaje < 85:
         estado = "ENFERMEDAD CRÓNICA"
         descripcion = (
             "Los parámetros clínicos sugieren una condición crónica o "
             "de alto riesgo. Se recomienda evaluación especializada y "
             "seguimiento continuo."
+        )
+    else:
+        estado = "ENFERMEDAD TERMINAL"
+        descripcion = (
+            "Los parámetros clínicos indican una condición terminal o "
+            "de riesgo extremo. Múltiples factores de gravedad están "
+            "presentes simultáneamente. Se requiere atención paliativa "
+            "especializada e inmediata."
         )
 
     return {
