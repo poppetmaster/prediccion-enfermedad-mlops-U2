@@ -5,7 +5,7 @@ Universidad Icesi · Maestría en Inteligencia Artificial Aplicada
 Servicio web construido con FastAPI que simula un modelo de ML capaz de
 clasificar el estado de salud de un paciente a partir de sus síntomas.
 
-Estados posibles:
+Estados posibles (Taller 2):
     ● NO ENFERMO
     ● ENFERMEDAD LEVE
     ● ENFERMEDAD AGUDA
@@ -16,13 +16,14 @@ Autores :   Cristian Camilo Quebrada
             Ruben Dario Sabogal
             Edwin Perez L
 
-Fecha : 13 de mayo de 2026
+Fecha : Mayo 2026
 """
 
 import json
 import os
 from datetime import datetime, timezone
-from fastapi import FastAPI, Request, Form
+
+from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -74,6 +75,8 @@ ESTADOS = [
     "ENFERMEDAD CRÓNICA",
     "ENFERMEDAD TERMINAL",
 ]
+
+
 def predecir_estado(datos: DatosPaciente) -> dict:
     """
     Simula la predicción del estado de enfermedad del paciente.
@@ -82,7 +85,7 @@ def predecir_estado(datos: DatosPaciente) -> dict:
     parámetros recibidos (mínimo 3 obligatorios: num_sintomas,
     dias_sintomas y nivel_dolor) y clasifica al paciente en uno de
     los cinco estados definidos.
-    
+
     Umbrales de clasificación:
         0  – 19  →  NO ENFERMO
         20 – 44  →  ENFERMEDAD LEVE
@@ -176,7 +179,65 @@ def predecir_estado(datos: DatosPaciente) -> dict:
 
 
 # ─────────────────────────────────────────────
-# 3.  APLICACIÓN FASTAPI
+# 3.  REGISTRO DE PREDICCIONES
+# ─────────────────────────────────────────────
+
+PREDICTIONS_FILE = os.environ.get("PREDICTIONS_FILE", "predicciones.json")
+
+
+def _cargar_predicciones() -> list:
+    """Carga el historial de predicciones desde el archivo JSON."""
+    if not os.path.exists(PREDICTIONS_FILE):
+        return []
+    try:
+        with open(PREDICTIONS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return []
+
+
+def _guardar_predicciones(registros: list) -> None:
+    """Guarda el historial de predicciones en el archivo JSON."""
+    with open(PREDICTIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(registros, f, ensure_ascii=False, indent=2)
+
+
+def registrar_prediccion(resultado: dict) -> dict:
+    """Agrega timestamp al resultado y lo persiste en el archivo."""
+    registro = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        **resultado,
+    }
+    registros = _cargar_predicciones()
+    registros.append(registro)
+    _guardar_predicciones(registros)
+    return registro
+
+
+def obtener_estadisticas() -> dict:
+    """Calcula estadísticas a partir del historial de predicciones."""
+    registros = _cargar_predicciones()
+    total = len(registros)
+
+    conteo_por_estado = {estado: 0 for estado in ESTADOS}
+    for r in registros:
+        estado = r.get("estado", "")
+        if estado in conteo_por_estado:
+            conteo_por_estado[estado] += 1
+
+    ultimas_5 = registros[-5:] if registros else []
+    ultima_fecha = registros[-1]["timestamp"] if registros else None
+
+    return {
+        "total_predicciones": total,
+        "predicciones_por_estado": conteo_por_estado,
+        "ultimas_5_predicciones": ultimas_5,
+        "ultima_prediccion": ultima_fecha,
+    }
+
+
+# ─────────────────────────────────────────────
+# 4.  APLICACIÓN FASTAPI
 # ─────────────────────────────────────────────
 
 app = FastAPI(
@@ -184,13 +245,13 @@ app = FastAPI(
     description=(
         "Servicio que simula un modelo de ML para clasificar el estado "
         "de salud de un paciente.  \n"
-        "**Universidad Icesi — Pipeline de MLOps**"
+        "**Universidad Icesi — Pipeline de MLOps — Taller 2**"
     ),
-    version="1.0.0",
+    version="2.0.0",
 )
 
 
-# ── 3-a  Página web (formulario para el médico) ────────────────
+# ── 4-a  Página web (formulario para el médico) ────────────────
 
 PAGINA_HTML = """
 <!DOCTYPE html>
@@ -204,6 +265,7 @@ PAGINA_HTML = """
     --azul: #003366; --acento: #2E86AB;
     --verde: #27ae60; --amarillo: #f39c12;
     --naranja: #e67e22; --rojo: #c0392b;
+    --negro: #2c2c2c;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -212,12 +274,8 @@ PAGINA_HTML = """
     min-height: 100vh; display: flex; flex-direction: column;
     align-items: center; padding: 30px 16px;
   }
-  .header {
-    text-align: center; margin-bottom: 28px;
-  }
-  .header h1 {
-    color: var(--azul); font-size: 1.6rem; margin-bottom: 4px;
-  }
+  .header { text-align: center; margin-bottom: 28px; }
+  .header h1 { color: var(--azul); font-size: 1.6rem; margin-bottom: 4px; }
   .header p { color: #666; font-size: .9rem; }
   .card {
     background: #fff; border-radius: 12px;
@@ -238,9 +296,7 @@ PAGINA_HTML = """
     border-radius: 8px; font-size: .95rem; transition: border .2s;
   }
   input[type=number]:focus { border-color: var(--acento); outline: none; }
-  .checks {
-    display: flex; gap: 24px; margin-top: 16px;
-  }
+  .checks { display: flex; gap: 24px; margin-top: 16px; }
   .checks label {
     display: flex; align-items: center; gap: 6px;
     font-weight: 500; cursor: pointer;
@@ -255,11 +311,16 @@ PAGINA_HTML = """
     cursor: pointer; transition: background .2s;
   }
   button:hover { background: var(--acento); }
+  .nav-links {
+    margin-top: 12px; text-align: center; font-size: .85rem;
+  }
+  .nav-links a {
+    color: var(--acento); text-decoration: none; margin: 0 8px;
+  }
+  .nav-links a:hover { text-decoration: underline; }
 
   /* ── resultado ── */
-  .resultado {
-    text-align: center; padding: 24px;
-  }
+  .resultado { text-align: center; padding: 24px; }
   .resultado .badge {
     display: inline-block; padding: 10px 28px; border-radius: 30px;
     font-size: 1.15rem; font-weight: 700; color: #fff;
@@ -269,6 +330,7 @@ PAGINA_HTML = """
   .badge.leve         { background: var(--amarillo); }
   .badge.aguda        { background: var(--naranja);  }
   .badge.cronica      { background: var(--rojo);     }
+  .badge.terminal     { background: var(--negro);    }
   .resultado .score {
     font-size: 2rem; font-weight: 700; color: var(--azul);
   }
@@ -294,7 +356,7 @@ PAGINA_HTML = """
 
 <div class="header">
   <h1>Predicción de Estado de Enfermedad</h1>
-  <p>Universidad Icesi · Pipeline de MLOps · Taller #1</p>
+  <p>Universidad Icesi · Pipeline de MLOps · Taller 2</p>
 </div>
 
 <!-- FORMULARIO -->
@@ -327,6 +389,10 @@ PAGINA_HTML = """
 
     <button type="submit">Obtener Predicción</button>
   </form>
+  <div class="nav-links">
+    <a href="/stats">📊 Ver estadísticas</a>
+    <a href="/docs">📄 Documentación API</a>
+  </div>
 </div>
 
 <!-- RESULTADO -->
@@ -337,7 +403,8 @@ PAGINA_HTML = """
   {% set cls = "no-enfermo" if resultado.estado == "NO ENFERMO"
           else "leve"       if resultado.estado == "ENFERMEDAD LEVE"
           else "aguda"      if resultado.estado == "ENFERMEDAD AGUDA"
-          else "cronica" %}
+          else "cronica"    if resultado.estado == "ENFERMEDAD CRÓNICA"
+          else "terminal" %}
 
   <span class="badge {{cls}}">{{ resultado.estado }}</span>
   <div class="score">{{ resultado.puntaje }} / 100</div>
@@ -392,6 +459,7 @@ async def predecir_formulario(
         edad=edad,
     )
     resultado = predecir_estado(datos)
+    registrar_prediccion(resultado)
 
     from jinja2 import Template
     tpl = Template(PAGINA_HTML)
@@ -410,6 +478,7 @@ async def predecir_formulario(
 async def predecir_api(datos: DatosPaciente):
     """
     Recibe un JSON con los datos del paciente y retorna la predicción.
+    Cada predicción queda registrada en el historial.
 
     Ejemplo con curl (Windows PowerShell):
     ```
@@ -418,7 +487,21 @@ async def predecir_api(datos: DatosPaciente):
          -d '{\"num_sintomas\":5,\"dias_sintomas\":10,\"nivel_dolor\":7,\"tiene_fiebre\":true,\"enfermedad_base\":false,\"edad\":45}'
     ```
     """
-    return predecir_estado(datos)
+    resultado = predecir_estado(datos)
+    registrar_prediccion(resultado)
+    return resultado
+
+
+@app.get("/stats", summary="Estadísticas de predicciones")
+async def estadisticas():
+    """
+    Retorna estadísticas del historial de predicciones:
+    - Total de predicciones realizadas
+    - Conteo por cada categoría de estado
+    - Últimas 5 predicciones
+    - Fecha de la última predicción
+    """
+    return obtener_estadisticas()
 
 
 @app.get("/api/salud", summary="Health check")
@@ -427,5 +510,5 @@ async def salud():
     return {
         "estado": "activo",
         "servicio": "Modelo de Predicción de Enfermedad",
-        "version": "1.0.0",
+        "version": "2.0.0",
     }
